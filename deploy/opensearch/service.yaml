@@ -6,14 +6,13 @@ metadata:
   labels:
     app: opensearch
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: opensearch
   ports:
   - name: http
     port: 9200
     targetPort: 9200
-    nodePort: 30092
   - name: transport
     port: 9300
     targetPort: 9300

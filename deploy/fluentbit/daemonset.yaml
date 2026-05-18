@@ -68,9 +68,6 @@ spec:
         - name: containers
           mountPath: /var/log/containers
           readOnly: true
-        - name: dockercontainers
-          mountPath: /var/lib/docker/containers
-          readOnly: true
       volumes:
       - name: config
         configMap:
@@ -81,6 +78,3 @@ spec:
       - name: containers
         hostPath:
           path: /var/log/containers
-      - name: dockercontainers
-        hostPath:
-          path: /var/lib/docker/containers

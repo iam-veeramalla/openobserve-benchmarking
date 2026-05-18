@@ -1,119 +1,138 @@
-# OpenObserve vs OpenSearch — Benchmark Suite
+# OpenObserve vs OpenSearch Benchmark Suite
 
-A self-contained benchmarking suite that compares **OpenObserve** and **OpenSearch** performance on a local KIND (Kubernetes-in-Docker) cluster.
+Benchmark framework for comparing OpenObserve and OpenSearch on AWS EKS under high-ingestion log workloads.
 
-The centrepiece is **LogStorm**, a purpose-built Go application that generates high-volume, realistic log traffic across five distinct log types simultaneously.
+This repository provisions infrastructure, deploys both stacks, drives ingestion using LogStorm, and generates a query latency report.
 
----
+## What This Project Does
 
-## LogStorm — The Log Generator
+- Creates or reuses an EKS benchmark cluster
+- Deploys OpenObserve and OpenSearch with benchmark-oriented settings
+- Deploys Fluent Bit and LogStorm for high-volume log ingestion
+- Waits for a target document count
+- Executes query benchmarks on both systems
+- Produces a Markdown benchmark report and raw query JSON
 
-LogStorm is a lightweight Go application designed to be *extremely* log-intensive. It runs **5 concurrent goroutines**, each producing a different log format at a configurable rate (default **400 logs/sec per type**), totalling **~2 000 logs/sec** to stdout.
+## Architecture
 
-### Why It's Log-Intensive
+- Log generator: app/logstorm
+- Benchmark automation: benchmark/auto_benchmark.sh
+- Query benchmark runner: benchmark/query_benchmark.py
+- Kubernetes manifests: deploy/
+- EKS orchestration scripts: root-level launchers + scripts/
 
-| Property | Detail |
-|---|---|
-| **Throughput** | 2 000 logs/sec sustained (configurable via `LOG_RATE` env var) |
-| **Concurrency** | 5 parallel goroutines, each with its own random seed |
-| **Variety** | 5 distinct log formats with realistic payloads (see below) |
-| **Payload size** | 200–800 bytes per line depending on type — stack traces and JSON bodies push volume |
-| **Duration** | Runs for 5 minutes by default (`LOG_DURATION` env var), producing **~600 000 logs per run** |
+## Prerequisites
 
-### Five Log Types
-
-1. **HTTP Access Logs** — Nginx combined format with randomised IPs, methods, paths, status codes, user agents, and response times. Simulates a busy API gateway.
-
-2. **Structured Application Logs** — JSON payloads with `level`, `service`, `message`, `request_id`, `trace_id`, `span_id`, and `duration_ms`. Covers 10 microservices and realistic messages (cache misses, retries, circuit breakers, etc.).
-
-3. **Error / Stack-Trace Logs** — Multi-line stack traces mimicking Java, Go, and Python exceptions (NullPointerException, connection refused, timeout, OOM). These are deliberately large and complex to stress log parsing.
-
-4. **Audit Logs** — Security-event JSON with `event_type`, `actor`, `resource`, `ip_address`, `outcome`, and `details`. Covers login, permission changes, API key operations, and data exports.
-
-5. **Metric Logs** — JSON lines with `metric_name`, `value`, `unit`, `tags`, and `host`. Simulates application-level metrics (request latency, queue depth, CPU usage, heap size, active connections, error rate).
-
-### Configuration
-
-| Env Variable | Default | Description |
-|---|---|---|
-| `LOG_RATE` | `400` | Logs per second *per generator* (total = 5×) |
-| `LOG_DURATION` | `300` | Seconds to run before graceful shutdown |
-
----
-
-## Repository Structure
-
-```
-.
-├── app/logstorm/          # LogStorm Go application
-│   ├── main.go            # Entry point, goroutine orchestration, stats reporter
-│   ├── generators.go      # 5 log-type generator functions
-│   ├── Dockerfile          # Multi-stage build (golang → scratch)
-│   └── go.mod
-├── deploy/
-│   ├── openobserve/       # StatefulSet, Service, ConfigMap for OpenObserve
-│   ├── opensearch/        # StatefulSet, Service for OpenSearch
-│   ├── fluentbit/         # DaemonSet + ConfigMap (dual output to both platforms)
-│   └── logstorm/          # Deployment manifest
-├── infra/
-│   ├── kind-config.yaml   # KIND cluster (1 control-plane + 1 worker)
-│   └── setup-cluster.sh   # Bootstrap script (cluster, namespaces, metrics-server)
-├── benchmark/
-│   ├── query_benchmark.py # 6 query types × 10 iterations, p50/p95/p99
-│   ├── parse_resources.py # Resource-sample parser
-│   └── queries/           # O2 SQL + OS DSL query definitions
-├── benchmarking.md        # Full benchmark results
-├── run-all.sh             # Master orchestration script
-└── .gitignore
-```
+- AWS account with permissions for EKS, EC2, IAM, ECR
+- AWS CLI configured (aws configure)
+- eksctl
+- kubectl
+- Docker (with buildx)
+- python3
 
 ## Quick Start
 
-### Prerequisites
-
-- Docker Desktop (8 GB RAM allocated)
-- [KIND](https://kind.sigs.k8s.io/)
-- `kubectl`, `jq`, `python3`
-
-### Run Everything
+Run a 100M document benchmark:
 
 ```bash
-./run-all.sh
+./run-100m-eks-benchmark.sh
 ```
 
-This will:
-1. Create a 2-node KIND cluster
-2. Build and load the LogStorm container image
-3. Deploy OpenObserve, OpenSearch, Fluent Bit, and LogStorm
-4. Wait for all pods to become ready
+This command calls setup-eks-benchmark.sh with TARGET_DOCS=100000000.
 
-### Run the Benchmark Manually
+## Main Entry Points
+
+- run-100m-eks-benchmark.sh
+	- One-command 100M run
+- setup-eks-benchmark.sh
+	- Full setup and benchmark automation (default target is from TARGET_DOCS, default 300000000)
+- scripts/setup-eks-benchmark.sh
+	- Wrapper to root setup script (single source of truth)
+- scripts/run-500m-benchmark.sh
+	- Long-run monitor/query flow (script name is historical)
+
+## Common Commands
+
+Run setup directly with a custom target:
 
 ```bash
-# Query latency benchmark (6 queries × 10 iterations)
+TARGET_DOCS=300000000 bash ./setup-eks-benchmark.sh
+```
+
+Manual query benchmark only (cluster already running):
+
+```bash
+kubectl --kubeconfig ~/.kube/o2-benchmark.yaml port-forward -n openobserve svc/openobserve 5080:5080
+kubectl --kubeconfig ~/.kube/o2-benchmark.yaml port-forward -n opensearch svc/opensearch 9200:9200
 python3 benchmark/query_benchmark.py
 ```
 
-### Access the UIs
-
-| Service     | URL                          | Credentials                                   |
-|-------------|------------------------------|-----------------------------------------------|
-| OpenObserve | http://localhost:5080        | `root@benchmark.local` / `BenchmarkPass123!`  |
-| OpenSearch  | http://localhost:9200        | No auth (security plugin disabled)            |
-
-### Teardown
+Watch progress logs:
 
 ```bash
-kind delete cluster --name o2-benchmark
+tail -f /tmp/o2-setup.log
+tail -f /tmp/auto-benchmark.log
 ```
 
----
+## Outputs
 
-## Results
+- results/BENCHMARK_REPORT.md
+- results/query_results.json
+- /tmp/o2-setup.log
+- /tmp/auto-benchmark.log
 
-See [benchmarking.md](benchmarking.md) for the full report. TL;DR:
+## Important Configuration
 
-- **Memory**: OpenObserve uses **2.5× less RAM** at the same ingestion rate
-- **Tail latency**: OpenObserve p95 stays under **82 ms**; OpenSearch spikes to **978 ms**
-- **Startup**: OpenObserve boots **30 % faster**
-- **Ingestion**: Both sustain **~3 000 logs/sec** — no difference
+Environment variables used by setup-eks-benchmark.sh:
+
+- REGION (default: ap-south-1)
+- AZ (default: ap-south-1a)
+- CLUSTER (default: o2-benchmark)
+- NODEGROUP (default: benchmark-ng)
+- NODE_TYPE (default: m7i-flex.large)
+- K8S_VERSION (default: 1.31)
+- KUBECONFIG_FILE (default: ~/.kube/o2-benchmark.yaml)
+- TARGET_DOCS (default: 300000000)
+- NODES (default: 3)
+- LOGSTORM_REPLICAS (default: 10)
+- LOGSTORM_RATE (default: 2000)
+- LOGSTORM_DURATION (default: 3000)
+- RESET_WORKLOADS (default: false)
+
+## Retry Behavior
+
+For clean reruns on an existing cluster, use:
+
+```bash
+RESET_WORKLOADS=true TARGET_DOCS=100000000 bash ./setup-eks-benchmark.sh
+```
+
+This removes benchmark workloads and PV/PVC bindings before re-applying manifests.
+
+## Repository Layout
+
+```text
+.
+├── app/logstorm/                 # Log generator
+├── benchmark/
+│   ├── auto_benchmark.sh         # Poll + trigger report flow
+│   └── query_benchmark.py        # Query benchmark and report generator
+├── deploy/                       # Kubernetes manifests
+├── scripts/                      # Additional runners/variants
+├── run-100m-eks-benchmark.sh     # Root launcher (100M)
+├── setup-eks-benchmark.sh        # Root launcher (full setup)
+└── results/                      # Generated results
+```
+
+## Cleanup
+
+Delete benchmark cluster:
+
+```bash
+eksctl delete cluster --name o2-benchmark --region ap-south-1
+```
+
+## Notes
+
+- This benchmark creates billable AWS resources.
+- Expect long runtime for high document targets.

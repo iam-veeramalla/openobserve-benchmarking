@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: openobserve-data-pv
+spec:
+  capacity:
+    storage: 1500Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-0dc0c7f7624dc15b3
+    fsType: ext4
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openobserve-data-pvc
+  namespace: openobserve
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: ""
+  volumeName: openobserve-data-pv
+  resources:
+    requests:
+      storage: 1500Gi
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: opensearch-data-pv
+spec:
+  capacity:
+    storage: 1500Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-0af274a46a0d6228c
+    fsType: ext4
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opensearch-data-pvc
+  namespace: opensearch
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: ""
+  volumeName: opensearch-data-pv
+  resources:
+    requests:
+      storage: 1500Gi

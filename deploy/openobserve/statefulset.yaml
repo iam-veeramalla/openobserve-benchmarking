@@ -16,6 +16,8 @@ spec:
       labels:
         app: openobserve
     spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: ap-south-1a
       containers:
       - name: openobserve
         image: public.ecr.aws/zinclabs/openobserve:v0.14.4
@@ -27,11 +29,11 @@ spec:
           name: http
         resources:
           requests:
-            cpu: "500m"
-            memory: "1Gi"
-          limits:
             cpu: "1000m"
-            memory: "1536Mi"
+            memory: "3Gi"
+          limits:
+            cpu: "3000m"
+            memory: "6Gi"
         readinessProbe:
           httpGet:
             path: /healthz
@@ -47,11 +49,7 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /data
-  volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 10Gi
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: openobserve-data-pvc

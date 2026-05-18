@@ -6,11 +6,10 @@ metadata:
   labels:
     app: openobserve
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: openobserve
   ports:
   - name: http
     port: 5080
     targetPort: 5080
-    nodePort: 30080

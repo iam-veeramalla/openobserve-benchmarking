@@ -1,4 +1,9 @@
-results/
+results/*
+!results/.gitkeep
 /tmp/o2-benchmark-data/
 *.log
+*.pyc
+*.bak
+__pycache__/
+.vscode/
 .DS_Store

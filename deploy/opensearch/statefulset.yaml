@@ -16,6 +16,10 @@ spec:
       labels:
         app: opensearch
     spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: ap-south-1a
+      securityContext:
+        fsGroup: 1000
       initContainers:
       - name: sysctl
         image: busybox:1.36
@@ -35,7 +39,7 @@ spec:
         - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
           value: "BenchmarkAdmin1!"
         - name: OPENSEARCH_JAVA_OPTS
-          value: "-Xms1g -Xmx1g"
+          value: "-Xms4g -Xmx4g"
         - name: bootstrap.memory_lock
           value: "false"
         - name: cluster.name
@@ -47,11 +51,11 @@ spec:
           name: transport
         resources:
           requests:
-            cpu: "500m"
-            memory: "2Gi"
-          limits:
             cpu: "1000m"
-            memory: "2560Mi"
+            memory: "5Gi"
+          limits:
+            cpu: "3000m"
+            memory: "7Gi"
         readinessProbe:
           httpGet:
             path: /_cluster/health
@@ -69,11 +73,7 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /usr/share/opensearch/data
-  volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 10Gi
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: opensearch-data-pvc

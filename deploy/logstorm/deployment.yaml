@@ -6,7 +6,7 @@ metadata:
   labels:
     app: logstorm
 spec:
-  replicas: 1
+  replicas: 10
   selector:
     matchLabels:
       app: logstorm
@@ -15,19 +15,21 @@ spec:
       labels:
         app: logstorm
     spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: ap-south-1a
       containers:
       - name: logstorm
-        image: logstorm:latest
-        imagePullPolicy: Never
+        image: 916957080239.dkr.ecr.ap-south-1.amazonaws.com/logstorm:latest
+        imagePullPolicy: IfNotPresent
         env:
         - name: LOG_RATE
-          value: "400"
+          value: "2000"
         - name: LOG_DURATION
-          value: "300"
+          value: "3000"
         resources:
           requests:
-            cpu: "250m"
-            memory: "128Mi"
+            cpu: "100m"
+            memory: "96Mi"
           limits:
             cpu: "500m"
             memory: "256Mi"
