@@ -1,5 +1,3 @@
-results/*
-!results/.gitkeep
 /tmp/o2-benchmark-data/
 *.log
 *.pyc
